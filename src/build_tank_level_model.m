@@ -1,0 +1,189 @@
+function build_tank_level_model(runSimulation)
+% build_tank_level_model Build and optionally simulate a Simulink model
+%   build_tank_level_model()    - generates tank_level_control.slx
+%   build_tank_level_model(true) - generates and runs the simulation
+%
+% The model mirrors the dynamics/PI 控制逻辑 in tank_level_sim.m
+
+if nargin < 1
+    runSimulation = false;
+end
+
+params.A = 0.5;
+params.kv = 0.7;
+params.q_in_base = 0.12;
+params.h0 = 0.5;
+params.h_max = 2.0;
+noise_std = 0.002;
+simTime = 600;
+
+assignin('base', 'tank_params', params);
+
+model = 'tank_level_control';
+modelFile = [model '.slx'];
+
+if bdIsLoaded(model)
+    close_system(model, 0);
+end
+if exist(modelFile, 'file')
+    delete(modelFile);
+end
+
+new_system(model);
+open_system(model);
+set_param(model, 'StopTime', num2str(simTime), ...
+    'Solver', 'ode45', ...
+    'FixedStep', 'auto');
+
+% Helper for block path
+blk = @(name) [model '/' name];
+
+%% Sources and signals
+add_block('simulink/Sources/Step', blk('Setpoint'), ...
+    'Time', '200', 'Before', '0.5', 'After', '0.65', ...
+    'Position', [60 50 90 80]);
+
+add_block('simulink/Math Operations/Sum', blk('ErrorSum'), ...
+    'Inputs', '+-', ...
+    'Position', [150 50 170 80]);
+
+% Controller (PID block configured as PI with output saturation)
+add_block('simulink/Continuous/PID Controller', blk('PI_Controller'), ...
+    'TimeDomain', 'Continuous-time', ...
+    'Form', 'Parallel', ...
+    'P', '4.5', ...
+    'I', '0.25', ...
+    'D', '0', ...
+    'N', '100', ...
+    'InitialConditionForIntegrator', '0', ...
+    'Position', [210 30 270 100]);
+
+add_block('simulink/Discontinuities/Saturation', blk('ValveSaturation'), ...
+    'UpperLimit', '1', ...
+    'LowerLimit', '0', ...
+    'Position', [290 40 320 90]);
+
+% Disturbance and inflow
+add_block('simulink/Sources/Constant', blk('QinBase'), ...
+    'Value', num2str(params.q_in_base), ...
+    'Position', [60 280 90 310]);
+
+add_block('simulink/Sources/Step', blk('DisturbUp'), ...
+    'Time', '350', 'Before', '0', 'After', '0.04', ...
+    'Position', [60 330 90 360]);
+
+add_block('simulink/Sources/Step', blk('DisturbDown'), ...
+    'Time', '450', 'Before', '0', 'After', '-0.04', ...
+    'Position', [60 380 90 410]);
+
+add_block('simulink/Math Operations/Sum', blk('QinSum'), ...
+    'Inputs', '+++', ...
+    'Position', [130 310 150 360]);
+
+% Plant: q_out, integrator, etc.
+add_block('simulink/Math Operations/Sum', blk('FlowSum'), ...
+    'Inputs', '+-', ...
+    'Position', [220 300 240 330]);
+
+add_block('simulink/Math Operations/Gain', blk('AreaGain'), ...
+    'Gain', num2str(1 / params.A), ...
+    'Position', [270 300 300 330]);
+
+add_block('simulink/Continuous/Integrator', blk('LevelIntegrator'), ...
+    'InitialCondition', num2str(params.h0), ...
+    'LimitOutput', 'on', ...
+    'UpperSaturationLimit', num2str(params.h_max), ...
+    'LowerSaturationLimit', '0', ...
+    'Position', [330 290 360 340]);
+
+add_block('simulink/Math Operations/Math Function', blk('SqrtLevel'), ...
+    'Operator', 'sqrt', ...
+    'Position', [390 300 420 330]);
+
+add_block('simulink/Math Operations/Gain', blk('KvGain'), ...
+    'Gain', num2str(params.kv), ...
+    'Position', [310 40 340 70]);
+
+add_block('simulink/Math Operations/Product', blk('OutflowProduct'), ...
+    'Inputs', '**', ...
+    'Position', [440 60 470 110]);
+
+% Noise and measurement
+add_block('simulink/Sources/Random Number', blk('Noise'), ...
+    'Mean', '0', ...
+    'Variance', '1', ...
+    'Seed', '0', ...
+    'SampleTime', '0.01', ...
+    'Position', [390 190 420 220]);
+
+add_block('simulink/Math Operations/Gain', blk('NoiseGain'), ...
+    'Gain', num2str(noise_std), ...
+    'Position', [450 190 480 220]);
+
+add_block('simulink/Math Operations/Sum', blk('MeasurementSum'), ...
+    'Inputs', '++', ...
+    'Position', [510 230 530 260]);
+
+% Visualization
+add_block('simulink/Signal Routing/Mux', blk('LevelMux'), ...
+    'Inputs', '2', ...
+    'Position', [580 40 600 100]);
+
+add_block('simulink/Sinks/Scope', blk('LevelScope'), ...
+    'NumInputPorts', '1', ...
+    'Position', [620 40 650 100]);
+
+add_block('simulink/Signal Routing/Mux', blk('ValveMux'), ...
+    'Inputs', '2', ...
+    'Position', [520 320 540 380]);
+
+add_block('simulink/Sinks/Scope', blk('ValveScope'), ...
+    'NumInputPorts', '1', ...
+    'Position', [560 320 590 380]);
+
+%% Connections
+add_line(model, 'Setpoint/1', 'ErrorSum/1');
+add_line(model, 'MeasurementSum/1', 'ErrorSum/2');
+add_line(model, 'ErrorSum/1', 'PI_Controller/1');
+add_line(model, 'PI_Controller/1', 'ValveSaturation/1');
+add_line(model, 'ValveSaturation/1', 'KvGain/1');
+add_line(model, 'KvGain/1', 'OutflowProduct/1');
+add_line(model, 'SqrtLevel/1', 'OutflowProduct/2');
+add_line(model, 'OutflowProduct/1', 'FlowSum/2');
+
+add_line(model, 'QinBase/1', 'QinSum/1');
+add_line(model, 'DisturbUp/1', 'QinSum/2');
+add_line(model, 'DisturbDown/1', 'QinSum/3');
+add_line(model, 'QinSum/1', 'FlowSum/1');
+add_line(model, 'FlowSum/1', 'AreaGain/1');
+add_line(model, 'AreaGain/1', 'LevelIntegrator/1');
+add_line(model, 'LevelIntegrator/1', 'SqrtLevel/1');
+add_line(model, 'LevelIntegrator/1', 'MeasurementSum/1', 'autorouting', 'on');
+
+add_line(model, 'Noise/1', 'NoiseGain/1');
+add_line(model, 'NoiseGain/1', 'MeasurementSum/2');
+
+add_line(model, 'Setpoint/1', 'LevelMux/1', 'autorouting', 'on');
+add_line(model, 'MeasurementSum/1', 'LevelMux/2', 'autorouting', 'on');
+add_line(model, 'LevelMux/1', 'LevelScope/1');
+
+add_line(model, 'ValveSaturation/1', 'ValveMux/1', 'autorouting', 'on');
+add_line(model, 'QinSum/1', 'ValveMux/2', 'autorouting', 'on');
+add_line(model, 'ValveMux/1', 'ValveScope/1');
+
+% Enable scopes to log data
+set_param(blk('LevelScope'), 'NumInputPorts', '1');
+set_param(blk('ValveScope'), 'NumInputPorts', '1');
+
+save_system(model);
+
+if runSimulation
+    simOut = sim(model);
+    assignin('base', 'tank_level_simout', simOut);
+end
+
+disp('Simulink model tank_level_control.slx 已生成。');
+if runSimulation
+    disp('仿真结果已存储在变量 tank_level_simout 中。');
+end
+end

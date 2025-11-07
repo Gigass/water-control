@@ -39,3 +39,15 @@
   - `PI_Controller`：以液位测量与设定值为输入，输出阀门开度，包含抗饱和逻辑。
   - `Scopes`：用于显示液位响应与阀门开度。
 - **实现方式**：通过 MATLAB 脚本自动搭建（调用 Simulink API 创建系统、块、连线），便于在无现成 `.slx` 文件的情况下复现模型，并确保参数与 `tank_level_sim.m` 保持一致。
+
+## Simulink 使用方法
+1. 在 MATLAB 中运行 `build_tank_level_model`（文件位于 `src/`）；脚本会生成 `tank_level_control.slx` 并在 Simulink 中打开。
+2. 如需立即仿真，可执行 `build_tank_level_model(true)`，脚本会在生成后调用 `sim` 并将结果保存到 `tank_level_simout` 变量。
+3. 模型顶层包含：
+   - `Setpoint` 阶跃源（0.5→0.65 m）
+   - `QinBase` 常量与两个扰动阶跃组成的进水信号
+   - `PI_Controller` 与 `ValveSaturation`（0~100%）
+   - `LevelIntegrator`（受限在 0~2 m）
+   - `Noise`（Random Number）与 `NoiseGain` 叠加到测量端
+   - 两个 Scope：`LevelScope` 显示设定值/液位，`ValveScope` 显示阀门开度与进水流量
+4. 如需调整参数，可编辑脚本顶部的 `params` 结构或在生成后的模型中修改各 block 的 `Gain/Step` 参数，再保存模型。
