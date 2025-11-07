@@ -7,12 +7,12 @@
 - **扰动场景**：350~450 s 之间进水额外增加 `0.04 m^3/s`，检验控制器的扰动抑制能力。
 
 ## 控制策略
-- **控制器**：PI 控制，`Kp = 2.5`，`Ki = 0.12`；默认关闭前馈（`ctrl.enable_feedforward = false`，`ctrl.ff_gain = 0`），如需补偿可重新开启并设置系数。
+- **控制器**：PI 控制，`Kp = 1.8`，`Ki = 0.12`，默认启用前馈并设置 `ctrl.ff_gain = 0.5`，用于抵消稳态进水流量；可按需调整系数或关闭前馈。
 - **抗积分饱和**：当阀门达到饱和时暂停积分，避免风up。
-- **执行器建模**：阀门输出经过一阶滞后 (`τ = 0.8 s`)，默认死区关闭（`deadband = 0`），再乘以 `√h` 形成真实出流量；若需考察阀门间隙，可重新启用死区。
+- **执行器建模**：阀门输出经过一阶滞后 (`τ = 1.0 s`)，默认死区关闭（`deadband = 0`），再乘以 `√h` 形成真实出流量；若需考察阀门间隙，可重新启用死区。
 - **设定值**：0~200 s 追踪 `0.5 m`，200 s 后阶跃到 `0.65 m`。
 
-- **测量滤波**：对传感器读数通过一阶低通 (`τ = 4.5 s`)，进一步抑制噪声。
+- **测量滤波**：对传感器读数通过一阶低通 (`τ = 3.5 s`)，在抑制噪声和响应速度之间取得折中。
 - **传感器噪声**：高斯噪声（2 mm）叠加在滤波输出上。
 - **进水扰动**：在阶跃扰动之外加入均值 0、标准差 `0.001 m^3/s` 的随机噪声，用于验证鲁棒性。
 - **可扩展性**：`params` 结构中可独立调节噪声、滤波、执行器动态以匹配不同工况。
@@ -41,7 +41,7 @@
 
 ## Simulink 模型特性
 - `build_tank_level_model.m` 通过 API 自动生成 `tank_level_control.slx`，结构与脚本保持一致。
-- 控制/执行器链路：`Setpoint → InvSqrt → FFGain → FFProduct` 与 `PI_Controller` 输出在 `ControlSum` 叠加后，经过 `ValveSaturation → ActuatorLag → DeadbandMap → KvGain`；当前默认 `FFGain = 0`，DeadbandMap 为线性通道，可按需改回带前馈/死区的配置。
+- 控制/执行器链路：`Setpoint → InvSqrt → FFGain → FFProduct` 与 `PI_Controller` 输出在 `ControlSum` 叠加后，经过 `ValveSaturation → ActuatorLag → DeadbandMap → KvGain`；默认启用前馈 (`FFGain = 0.6`)，DeadbandMap 为线性通道，可按需修改。
 - 测量链路：`LevelIntegrator → LevelFilter → Measurement + Noise`，在控制器前实现低通滤波。
 - 扰动链路：`QinBase + 阶跃扰动 + 随机噪声` 输入到水箱，噪声通过 `Random Number + Gain` 模块实现。
 - 监控链路：`LevelScope` 展示设定值/测量，`ValveScope` 展示控制器/执行器/有效开度，`FlowScope` 展示总进水与随机扰动。

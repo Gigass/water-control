@@ -10,14 +10,14 @@ params.g = 9.81;              % 重力加速度 (m/s^2)
 params.q_in_base = 0.12;      % 基础进水流量 (m^3/s)
 params.q_in_noise_std = 0.001; % 进水随机扰动强度
 
-ctrl.Kp = 2.0;                % PI 控制器比例系数
-ctrl.Ki = 0.10;               % PI 控制器积分系数
+ctrl.Kp = 1.8;                % PI 控制器比例系数
+ctrl.Ki = 0.12;               % PI 控制器积分系数
 ctrl.u_min = 0.0;           % 阀门最小开度 (0-1)
 ctrl.u_max = 1.0;           % 阀门最大开度 (0-1)
 ctrl.enable_feedforward = true;
-ctrl.ff_gain = 0.6;
+ctrl.ff_gain = 0.5;
 
-filter.tau = 4.0;           % 一阶低通滤波器时间常数 (s)
+filter.tau = 3.5;           % 一阶低通滤波器时间常数 (s)
 
 actuator.tau = 1.0;         % 执行器一阶滞后 (s)
 actuator.deadband = 0.0;    % 阀门死区

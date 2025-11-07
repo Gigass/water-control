@@ -14,13 +14,13 @@ params.kv = 0.7;
 params.q_in_base = 0.12;
 params.h0 = 0.5;
 params.h_max = 2.0;
-params.filter_tau = 4.5;
-params.actuator_tau = 0.8;
+params.filter_tau = 3.5;
+params.actuator_tau = 1.0;
 params.deadband = 0.0;
 params.q_in_noise_std = 0.001;
-ctrl.Kp = 2.5;
+ctrl.Kp = 1.8;
 ctrl.Ki = 0.12;
-ctrl.ff_gain = 0.0;
+ctrl.ff_gain = 0.5;
 noise_std = 0.002;
 simTime = 600;
 
