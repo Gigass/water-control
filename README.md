@@ -209,7 +209,7 @@ README.md        # 本报告
 
 ## 6. 仿真结果
 
-![Tank Level Control](Tank%20Level%20Control.png)
+![Tank Level Control](./src/Tank%20Level%20Control.png)
 
 **解读**  
 - 第一行：液位（蓝）、设定值（橙虚线）、滤波测量（黄点）；可以看到阶跃后最大超调约 0.1 m，之后呈指数衰减。  
