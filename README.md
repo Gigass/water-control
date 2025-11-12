@@ -314,3 +314,16 @@ README.md        # 本报告
 这些片段与 README 前文互相呼应，帮助读者迅速定位和理解核心实现。
 
 ---
+
+## 11. 故障排查记录（最新）
+
+- **现象**：运行 `build_tank_level_model(true)` 时 Simulink 报错：“`tank_level_control/DeadbandMap` 中 Breakpoints 必须严格单调递增”，导致 `.slx` 无法生成。
+- **原因分析**：`src/build_tank_level_model.m` 将阀门死区建模为查找表，默认断点格式 `[0 deadband 1]`。当 `params.deadband = 0` 时形成 `[0 0 1]`，与 Simulink Lookup Table block “严格单调”约束冲突。
+- **解决方案**：脚本现在会检测 deadband 参数；当其为零时，回退到 `[0 1] → [0 1]` 的直通表，保留死区逻辑开启时的原配置（见 `src/build_tank_level_model.m:152-168`）。无需手动改动模型，即可保持 MATLAB 脚本与 Simulink 结果一致。
+- **复现/验证**：
+  1. 在 MATLAB 中执行 `addpath(genpath(pwd)); build_tank_level_model(true);`
+  2. 确认新的 `tank_level_control.slx` 被生成并能在 Simulink 中直接运行；
+  3. 若需要启用非零死区，只需在脚本顶部修改 `params.deadband`，生成流程依旧有效。
+- **经验总结**：当通过脚本创建 Lookup Table 或 Piecewise Blocks 时，要对“边界参数=0”的特例添加保护，特别是 Simulink 要求“严格递增/单调”的配置项。
+
+---

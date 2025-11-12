@@ -154,10 +154,17 @@ add_block('simulink/Continuous/Transfer Fcn', blk('ActuatorLag'), ...
     'Denominator', sprintf('[%g 1]', params.actuator_tau), ...
     'Position', [350 40 380 90]);
 
-deadband_points = sprintf('[0 %g 1]', params.deadband);
+if params.deadband > 0
+    deadband_points = sprintf('[0 %g 1]', params.deadband);
+    deadband_table = '[0 0 1]';
+else
+    % When deadband is disabled, fallback to a pass-through lookup
+    deadband_points = '[0 1]';
+    deadband_table = '[0 1]';
+end
 add_block('simulink/Lookup Tables/1-D Lookup Table', blk('DeadbandMap'), ...
     'BreakpointsForDimension1', deadband_points, ...
-    'Table', '[0 0 1]', ...
+    'Table', deadband_table, ...
     'Position', [400 40 440 90]);
 
 % Noise and measurement

@@ -99,4 +99,17 @@
 
 ---
 
+## 6. 故障排查与脚本修复（Deadband Lookup）
+
+| 维度 | 说明 |
+| --- | --- |
+| **症状** | 在 MATLAB 中执行 `build_tank_level_model(true)` 时，Simulink 抛出错误：“`tank_level_control/DeadbandMap` 中 `BreakpointsForDimension1` 的值必须严格单调递增。问题出现在元素 2 上。” 模型未生成，目录中只留下 `.slx.err` 备份。 |
+| **根因** | `src/build_tank_level_model.m` 利用 1-D Lookup Table 近似阀门死区，断点设定为 `[0 deadband 1]`。当 `params.deadband = 0` 时，断点序列退化为 `[0 0 1]`，违反 Simulink 对查表断点“严格递增”的约束，导致模型构建失败。 |
+| **影响范围** | 仅影响 Simulink 自动建模流程；纯 MATLAB 数值脚本 `tank_level_sim.m` 不依赖该 Lookup Table，因此能够正常输出图像与指标。 |
+| **修复方案** | 在 `src/build_tank_level_model.m:152-168` 添加条件判断：当 `params.deadband > 0` 时保持原三段断点；若 deadband 关闭，则退化为 `[0 1] → [0 1]` 的直通查表，相当于完全无死区。这样既满足单调性，又与脚本参数配置保持一致。 |
+| **验证步骤** | 1) `addpath(genpath(pwd)); build_tank_level_model(true);`；2) 确认新的 `tank_level_control.slx` 生成且仿真成功；3) 将 `params.deadband` 改为正值再次执行，验证 Lookup Table 仍可表示真实死区。 |
+| **经验教训** | 通过脚本创建 Simulink 模型时，任何“严格递增/正定”类参数都需要覆盖边界值（如 0、负数）场景；对于 Lookup Table 等离散化模块，建议在生成前做显式检查或提供回退参数，以防脚本与 GUI 参数不一致。 |
+
+---
+
 以上报告总结了从题目理解、模型实现到多轮调优的全过程，可直接作为课程/项目文档提交。***
